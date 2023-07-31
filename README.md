@@ -16,10 +16,18 @@ If you are interested in developing a parser for the reMarkable file format, you
 
 Finally, it's worth pointing out that currently this specification only describes the format of the binary `.rm` files used to store all the vector details of your drawings and scribbles. The tablet also includes several text files with these `.rm` files, which are necessary but not described here. However, since they're text-based, you can open them up and read them yourself. The [unofficial reMarkable wiki](https://remarkablewiki.com) also has [an article](https://remarkablewiki.com/tech/filesystem#user_data_directory_structure) describing their structure.
 
+## Getting to the files
+
+Your reMarkable tablet, believe it or not, is actually just a Linux computer. ReMarkable's creators have been kind enough to give us root-level access to the tablet's internals. You can read more about this on the unofficial wiki and [reMarkable's offical support page](https://support.remarkable.com/s/article/Help), but the TL;DR is:
+
+- You can access your tablet via `ssh`. In your tablet settings, tap on "Help," then "Copyrights and licenses." 
+- Files are stored in a flat structure in `/home/root/.local/share/remarkable/xochitl`.
+- Each notebook is stored as a collection of files and directories with the same UUID. Within the UUID-named directory, there will be a single `.rm` file for each page of the notebook, named with a different UUID. These `.rm` files are the subject of this repository.
+
 ## Covering my butt
 
-1) Neither myself nor this work is directly associated with reMarkable in any way.
-2) This work is released under the [MIT License](LICENSE), which means you can essentially do whatever you want with it as long as you acknowledge my contribution and agree that it's not my fault if something breaks.
+1) Neither myself nor this work are associated with reMarkable in any way. I'm just some guy with a tablet who likes having control over his files.
+2) This work is released under the [MIT License](LICENSE), which means you can essentially do whatever you want with it as long as you acknowledge my contribution and agree that it's not my fault if anything goes wrong.
 3) **I am making no guarantees of the accuracy or fitness of this work.** Mucking around with the internals of your tablet and its files comes with risks, and it is your responsibilty to manage those risks for yourself.
 4) If you find a bug or inaccuracy, please [submit an issue](https://github.com/YakBarber/remarkable_file_format/issues/new) to this repository, or even better, fork the repository and submit a pull request with a fix.
 
