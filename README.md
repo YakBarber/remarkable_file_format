@@ -4,11 +4,11 @@ This repository provides a reverse-engineered file format spec for the [reMarkab
 
 If you are *not* interested in developing your own parser or writer for the reMarkable file format, you probably should instead look at [`rmconvert`](https://github.com/yakbarber/rmconvert), my sister project aimed at building bi-directional conversion tooling for this file format. If you're looking to build tools yourself, read on.
 
-**Note:** This file represents the *current* version of the reMarkable file format used on tablets with up-to-date firmware. If you are on an older version (pre 3.0), you should instead look at [the work done by others](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html) on the [older formats](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy).
+**Note:** This file represents the *current* version of the reMarkable file format used on tablets with up-to-date firmware. If you are on an older (pre 3.0) version, you should instead look at [the work done by others](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html) on the [older formats](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy).
 
 ## Explanation
 
-The format spec in this repository is a single [Kaitai Struct](https://www.kaitai.io) file ([rmv6.ksy](rmv6.ksy)). This file is a functional, nearly-complete specification of the [reMarkable tablet](https://remarkable.com)'s "v6" `.rm` (formerly `.lines`) file format, which was introduced with firmware version 3.0 at the end of 2022. The specification was reverse-engineered by me, Barry Van Tassell, during my 6-week batch at the [Recurse Center](https://www.recurse.com) in the summer of 2023.
+The format spec in this repository is a single [Kaitai Struct](https://www.kaitai.io) YAML-style file ([rmv6.ksy](rmv6.ksy)). This file is a functional, nearly-complete specification of the [reMarkable tablet](https://remarkable.com)'s "v6" `.rm` (formerly `.lines`) file format, which was introduced with firmware version 3.0 at the end of 2022. The specification was reverse-engineered by me, Barry Van Tassell, during my 6-week batch at the [Recurse Center](https://www.recurse.com) in the summer of 2023.
 
 I have done my best to follow Kaitai style norms, to include documentation, and to be clear about what is known, unknown, complete, and incomplete.
 
