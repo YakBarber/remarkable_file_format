@@ -14,7 +14,7 @@ I have done my best to follow Kaitai style norms, to include documentation, and 
 
 If you are interested in developing a parser for the reMarkable file format, you will want to check out the [Kaitai Struct documentation and tooling](https://doc.kaitai.io/), which will allow you to convert the spec into parsing code in a number of different languages.
 
-Finally, it's worth pointing out that currently this specification only describes the format of the binary `.rm` files used to store all the vector details of your drawings and scribbles. The tablet also includes several text files with these `.rm` files, which are necessary but not described here. However, since they're text-based, you can open them up and read them yourself. The [unofficial reMarkable wiki](https://remarkablewiki.com) also has [an article](https://remarkablewiki.com/tech/filesystem#user_data_directory_structure) describing their structure.
+Finally, it's worth pointing out that currently this specification only describes the format of the binary `.rm` files used to store all the vector details of your drawings and scribbles. The tablet also includes several text files with these `.rm` files, which are necessary but not described here. However, since they're text-based, you can open them up and read them yourself. The unofficial reMarkable wiki (now [archived](https://web.archive.org/web/20230619092221/https://remarkablewiki.com/)) also had [an article](https://web.archive.org/web/20230619092221/https://remarkablewiki.com/tech/filesystem) describing their structure.
 
 ## Getting to the files
 
@@ -41,7 +41,7 @@ These links are to previous work I have referenced and taken inspiration from. F
 
 [Rust-based parser based on 2019 documentation](https://github.com/ax3l/lines-are-rusty)
 
-[filesystem layout and format of the non-binary metadata files (wiki)](https://remarkablewiki.com/tech/filesystem#user_data_directory_structure)
+[filesystem layout and format of the non-binary metadata files (wiki, archived :( )](https://web.archive.org/web/20230619092221/https://remarkablewiki.com/tech/filesystem)
 
 [Kaitai struct for parsing .rm v3 and v5 files (2020)](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy)
 
