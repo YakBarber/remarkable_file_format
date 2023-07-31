@@ -2,9 +2,9 @@
 
 This repository provides a reverse-engineered file format spec for the [reMarkable tablet](https://remarkable.com)'s proprietary file format.
 
-If you are **not** interested in developing your own parser or writer for the reMarkable file format, you probably should instead look at [`rmconvert`](https://github.com/yakbarber/rmconvert), my sister project aimed at building bi-directional conversion tooling for this file format. If you're looking to build tools yourself, read on.
+If you are *not* interested in developing your own parser or writer for the reMarkable file format, you probably should instead look at [`rmconvert`](https://github.com/yakbarber/rmconvert), my sister project aimed at building bi-directional conversion tooling for this file format. If you're looking to build tools yourself, read on.
 
-*Note:* This file represents the **current** version of the reMarkable file format used on tablets with up-to-date firmware. If you are on an older version (pre 3.0), you should instead look at [the work done by others](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html) on the [older formats](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy).
+**Note:** This file represents the *current* version of the reMarkable file format used on tablets with up-to-date firmware. If you are on an older version (pre 3.0), you should instead look at [the work done by others](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html) on the [older formats](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy).
 
 ## Explanation
 
@@ -20,7 +20,7 @@ Finally, it's worth pointing out that currently this specification only describe
 
 1) Neither myself nor this work is directly associated with reMarkable in any way.
 2) This work is released under the [MIT License](LICENSE), which means you can essentially do whatever you want with it as long as you acknowledge my contribution and agree that it's not my fault if something breaks.
-3) *I am making no guarantees of the accuracy or fitness of this work.* Mucking around with the internals of your tablet and its files comes with risks, and it is your responsibilty to manage those risks for yourself.
+3) **I am making no guarantees of the accuracy or fitness of this work.** Mucking around with the internals of your tablet and its files comes with risks, and it is your responsibilty to manage those risks for yourself.
 4) If you find a bug or inaccuracy, please [submit an issue](https://github.com/YakBarber/remarkable_file_format/issues/new) to this repository, or even better, fork the repository and submit a pull request with a fix.
 
 ## Shoulders I am standing on
