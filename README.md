@@ -20,7 +20,7 @@ Finally, it's worth pointing out that currently this specification only describe
 
 Your reMarkable tablet, believe it or not, is actually just a Linux computer. ReMarkable's creators have been kind enough to give us root-level access to the tablet's internals. You can read more about this on the unofficial wiki and [reMarkable's offical support page](https://support.remarkable.com/s/article/Help), but the TL;DR is:
 
-- You can access your tablet via `ssh`. In your tablet settings, tap on "Help," then "Copyrights and licenses." 
+- You can access your tablet via `ssh`. First connect your tablet to either your computer via USB or your local home network. Then in your tablet settings, tap on "Help," then "Copyrights and licenses." There you will find your tablet's local IP address and the root password. If the IP address is `10.10.11.11`, you'd log in like: `ssh root@10.10.11.11` and then enter the root password when prompted.
 - Files are stored in a flat structure in `/home/root/.local/share/remarkable/xochitl`.
 - Each notebook is stored as a collection of files and directories with the same UUID. Within the UUID-named directory, there will be a single `.rm` file for each page of the notebook, named with a different UUID. These `.rm` files are the subject of this repository.
 
@@ -36,8 +36,12 @@ Your reMarkable tablet, believe it or not, is actually just a Linux computer. Re
 These links are to previous work I have referenced and taken inspiration from. For the most part, they target obsolete versions of the reMarkable file format.
 
 [rM2svg (2019)](https://github.com/reHackable/maxio/blob/master/tools/rM2svg)
+
 [original format documentation (2017-2019)](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html)
+
 [Rust-based parser based on 2019 documentation](https://github.com/ax3l/lines-are-rusty)
+
 [filesystem layout and format of the non-binary metadata files (wiki)](https://remarkablewiki.com/tech/filesystem#user_data_directory_structure)
+
 [Kaitai struct for parsing .rm v3 and v5 files (2020)](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy)
 
