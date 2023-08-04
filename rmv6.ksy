@@ -117,7 +117,9 @@ types:
         contents: [0x1f]
 
       - id: layer_id
-        size: 2
+        #size: 2
+        terminator: 0x2f
+        consume: false
         doc: |
           Identifier for this layer that appears in other structures in reference
           to this layer. There are some data types (defined below) that have 
@@ -128,7 +130,10 @@ types:
       - id: magic_1
         contents: [0x2f]
 
-      - size: 4
+      - id: unknown_00
+        #size: 4
+        terminator: 0x4c
+        consume: false
 
       - id: magic_2
         contents: [0x4c]
@@ -159,7 +164,9 @@ types:
         contents: [0x1f]
 
       - id: id
-        size: 2
+        #size: 2
+        terminator: 0x2c
+        consume: false
         doc: The layer's identifier.
 
       - id: magic_1
@@ -167,7 +174,7 @@ types:
 
       - id: len_rest0
         type: u4
-        doc: Byte length of remainder of block from here.
+        doc: Byte length from here to magic_5 (3c)
 
       - id: magic_2
         contents: [0x1f]
@@ -182,7 +189,7 @@ types:
 
       - id: len_rest1
         type: u4
-        doc: Byte length of remainder of block from here.
+        doc: Byte length from here to magic_5 (3c)
 
       - id: len_name
         type: u1
@@ -315,7 +322,10 @@ types:
       - id: magic_0
         contents: [0x1f]
 
-      - size: 2
+      - id: unknown_00
+        #size: 2
+        terminator: 0x2c
+        consume: false
 
       - id: magic_1
         contents: [0x2c]
@@ -437,13 +447,18 @@ types:
       contents: [0x2f]
 
     - id: id_field_2
-      type: u2
+      #type: u2
+      terminator: 0x3f
+      consume: false
+
 
     - id: magic_3f
       contents: [0x3f]
 
     - id: id_field_3
-      type: u2
+      #type: u2
+      terminator: 0x4f
+      consume: false
 
     - id: magic_4f
       contents: [0x4f]
@@ -461,8 +476,9 @@ types:
       contents: [0x6c]
       if: done_flag == 0
 
-    - id: len_always_4
-      contents: [0x04, 0x00, 0x00, 0x00]
+    - id: len_always_4 # was 5 when a bunch of the ids were extra long
+      size: 4
+      #contents: [0x04, 0x00, 0x00, 0x00]
       if: done_flag == 0
       doc: This is definitely a byte count, but is always 4.
 
@@ -519,21 +535,27 @@ types:
       contents: [0x1f]
 
     - id: layer_id
-      type: u2
+      #type: u2
+      terminator: 0x2f
+      consume: false
       doc: Id of the layer this line is associated with. See `rm_layer_definition`.
 
     - id: magic_1
       contents: [0x2f]
 
     - id: line_id
-      type: u2
+      #type: u2
+      terminator: 0x3f
+      consume: false
       doc: A unique identifier for this line.
 
     - id: magic_2
       contents: [0x3f]
 
     - id: last_line_id
-      type: u2
+      #type: u2
+      terminator: 0x4f
+      consume: false
       doc: The `line_id` of the previously-drawn line.
 
     - id: magic_3
