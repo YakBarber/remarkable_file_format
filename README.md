@@ -35,13 +35,15 @@ Your reMarkable tablet, believe it or not, is actually just a Linux computer. Re
 
 These links are to previous work I have referenced and taken inspiration from. For the most part, they target obsolete versions of the reMarkable file format.
 
-[rM2svg (2019)](https://github.com/reHackable/maxio/blob/master/tools/rM2svg)
+[`remarkable-layers`, a Python library for bi-directional conversion of v5 binary files. Abandoned/archived in 2021](https://github.com/bsdz/remarkable-layers)
 
 [original format documentation (2017-2019)](https://plasma.ninja/blog/devices/remarkable/binary/format/2017/12/26/reMarkable-lines-file-format.html)
 
-[Rust-based parser based on 2019 documentation](https://github.com/ax3l/lines-are-rusty)
+[Kaitai struct for parsing .rm v3 and v5 files (2020)](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy)
+
+[`rM2svg` (2019)](https://github.com/reHackable/maxio/blob/master/tools/rM2svg)
+
+[`lines-are-rusty`, a Rust-based parser based on 2019 documentation](https://github.com/ax3l/lines-are-rusty)
 
 [filesystem layout and format of the non-binary metadata files (wiki, archived :( )](https://web.archive.org/web/20230619092221/https://remarkablewiki.com/tech/filesystem)
-
-[Kaitai struct for parsing .rm v3 and v5 files (2020)](https://github.com/matomatical/reMarkable-kaitai/blob/main/rm_v5.ksy)
 
