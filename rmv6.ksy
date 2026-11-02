@@ -14,25 +14,26 @@ doc: |
 
 
 seq:
-  - id: frontmatter
-    type: rm_frontmatter
+  - id: header
+    type: header
     doc: |
-      Header and unknown boilerplate at the start of the file. The primary
-      information currently extracted from this section is the format version
-      (which should always be 6).
+      Fixed 43-byte text header. The format version (which should always
+      be 6) is the only information in it.
 
   - id: blocks
     type: block
     repeat: eos
     doc: |
-      Blocks contain the primary data structures of the file, and are in
-      length-header-value format. See the `block_type` enum and `block` type.
+      Blocks contain all data structures of the file, including the
+      page-level preamble (`author_ids`, `migration_info`, `page_info`,
+      `scene_info`) that earlier versions of this spec treated as fixed
+      "frontmatter". See the `block_type` enum and `block` type.
 
 enums:
   block_type:
     0x00:
       id: migration_info
-      doc: Migration/device marker. Part of the fixed-looking file preamble.
+      doc: Migration/device marker. See `migration_info`.
     0x01:
       id: scene_tree
       doc: |
@@ -68,13 +69,17 @@ enums:
       doc: Placeholder for a deleted scene item.
     0x09:
       id: author_ids
-      doc: Maps the small integer author ids used in CRDT ids to UUIDs.
+      doc: |
+        Maps the small integer author ids used in CRDT ids to UUIDs. See
+        `author_ids`.
     0x0a:
       id: page_info
-      doc: Page counters (loads, merges, text chars/lines, ...).
+      doc: Page counters (loads, merges, text chars/lines, ...). See `page_info`.
     0x0d:
       id: scene_info
-      doc: Page-level scene state (current layer, visibility flags, ...).
+      doc: |
+        Page-level scene state (current layer, visibility flags, ...). See
+        `scene_info`.
 
   tag_type:
     0x1:
@@ -373,6 +378,10 @@ types:
         type:
           switch-on: block_type
           cases:
+            'block_type::author_ids': author_ids
+            'block_type::migration_info': migration_info
+            'block_type::page_info': page_info
+            'block_type::scene_info': scene_info
             'block_type::scene_tree': scene_tree
             'block_type::tree_node': tree_node
             'block_type::root_text': root_text
@@ -749,108 +758,106 @@ types:
       - id: y
         type: f8
 
-  rm_frontmatter:
-    doc: |
-      The frontmatter at the top of the file. Most of this is not understood,
-      but most of it also remains constant across files.
-
+  header:
     seq:
-      - id: header
-        size: 43
-        type: rm_frontmatter_header
-
-      - id: magic_1
-        contents: [
-          0x19, 0x00, 0x00, 0x00, 0x00,
-          
-          0x01, 0x01, 0x09, 0x01, 0x0c, 0x13, 0x00, 0x00,
-          
-          0x00, 0x10, 0xeb, 0x2f, 0xac, 0x80, 0xfb, 0x2e,
-          
-          0x59, 0x8d, 0xa7, 0x14, 0xdf, 0x4e, 0xc5, 0x65,
-          
-          0x0b, 0x8e, 0x01, 0x00, 0x07, 0x00, 0x00, 0x00,
-          
-          0x00, 0x01, 0x01, 0x00, 0x1f, 0x01, 0x01, 0x21]
-      - id: dupe_flip_1 # the dupe flips were 1 and 0 but became 0 and 1 when page copied
-        type: u1      
-      - id: magic_2
-        contents: [0x31]
-      - id: dupe_flip_2
-        type: u1
-      - id: magic_3
-        contents: [
-          0x19, 0x00, 0x00, 0x00, 0x00,
-          
-          0x00, 0x01, 0x0a,
-          ]
-      - id: x4_chunks
-        type: rm_x4_chunks
-      - id: magic_4
-        contents: [0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x0d, 0x1c, 0x06, 0x00, 0x00, 0x00, 0x1f]
-      - id: unknown_2
-        type: u2
-      - id: magic_5
-        contents: [0x2f]
-      - id: active_layer
-        type: u2
-      - id: magic_6
-        contents: [0x2c, 0x05, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x21, 0x01]
-      - id: pre_magic
-        contents: [0x3c, 0x05, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x21, 0x01]
-
-
-  rm_frontmatter_header:
-    seq:
-      - id: magic_text
-        size: 32
+      - id: magic
         contents: reMarkable .lines file, version=
 
       - id: version_string
         size: 1
         type: str
-        doc: Version number, but encoded as a single UTF-8 character.
+        doc: Version number, encoded as a single ASCII digit.
 
-      - id: ten_spaces
-        contents: [0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20]
+      - id: padding
+        contents: '          '
 
     instances:
       version_number:
         value: version_string.to_i
 
-  rm_x4_chunks:
+  author_ids:
     doc: |
-      This is a section of the frontmatter that encodes file-level information,
-      but it's not all understood.
-
+      Table of authors (devices/apps that have edited the page). The
+      `author` byte of every `crdt_id` indexes this table. Differs between
+      devices, so it can't be treated as constant.
     seq:
-      - id: magic_0
-        contents: [0x14]
+      - id: num_authors
+        type: varuint
+      - id: authors
+        type: author_id
+        repeat: expr
+        repeat-expr: num_authors.value
+      - id: unknown_trailing
+        size-eos: true
 
-      - id: timestamp
+  author_id:
+    seq:
+      - id: tag
+        type: tag(0, 0xc)
+      - id: len_body
         type: u4
+      - id: body
+        size: len_body
+        type: author_id_body
+
+  author_id_body:
+    seq:
+      - id: len_uuid
+        type: varuint
+      - id: uuid
+        size: len_uuid.value
+        doc: Author UUID, in little-endian (Microsoft GUID) byte order.
+      - id: author_id
+        type: u2
+      - id: unknown_trailing
+        size-eos: true
+
+  migration_info:
+    doc: |
+      Migration marker. `is_device` and `unknown` are the two bytes that
+      flip when a page is duplicated ("dupe_flip" in earlier versions of
+      this spec).
+    seq:
+      - id: migration_id
+        type: tagged_id(1)
+      - id: is_device
+        type: tagged_u1(2)
+      - id: unknown
+        type: tagged_u1(3)
+        if: not _io.eof
+      - id: unknown_trailing
+        size-eos: true
+
+  page_info:
+    seq:
+      - id: loads_count
+        type: tagged_u4(1)
         doc: |
-          Starts at 1, and increments when the file is updated/saved.
-          This has been named "timestamp" because it seems to correlate to
-          the `timestamp` field in the .contents file associated with this
-          notebook.
+          Incremented each time the page is loaded/saved. Called
+          "timestamp" in earlier versions of this spec.
+      - id: merges_count
+        type: tagged_u4(2)
+      - id: text_chars_count
+        type: tagged_u4(3)
+      - id: text_lines_count
+        type: tagged_u4(4)
+      - id: type_folio_use_count
+        type: tagged_u4(5)
+        if: not _io.eof
+      - id: unknown_trailing
+        size-eos: true
 
-      - id: magic_1
-        contents: [0x24]
-
-      - type: u4
-
-      - id: magic_3
-        contents: [0x34]
-
-      - type: u4
-
-      - id: magic_4
-        contents: [0x44]
-
-      - type: u4
-
-      - id: magic_5
-        contents: [0x54]
-
-      - type: u4
+  scene_info:
+    seq:
+      - id: current_layer
+        type: lww(1, lww_kind::crdt_id)
+        doc: The active layer, as a `scene_tree` node id.
+      - id: background_visible
+        type: lww(2, lww_kind::u1)
+        if: not _io.eof
+      - id: root_document_visible
+        type: lww(3, lww_kind::u1)
+        if: not _io.eof
+      - id: unknown_trailing
+        size-eos: true
+        doc: Newer firmware appends further fields (e.g. paper size).
