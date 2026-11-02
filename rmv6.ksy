@@ -26,37 +26,56 @@ seq:
     repeat: eos
     doc: |
       Blocks contain the primary data structures of the file, and are in
-      size-type-value format. See the `block_flags` enum and `block` type.
+      length-header-value format. See the `block_type` enum and `block` type.
 
 enums:
-  block_flags:
-    0x1010100:
-      id: layer_def
+  block_type:
+    0x00:
+      id: migration_info
+      doc: Migration/device marker. Part of the fixed-looking file preamble.
+    0x01:
+      id: scene_tree
       doc: |
-        Initial enumeration of layers present, including the text layer.
-        There is one block per layer. See `rm_layer_definition`.
-    0x2020100: 
-      id: layer_names
+        Declares a node in the scene tree (the root group, each layer)
+        and its parent. One block per layer. See `rm_layer_definition`.
+    0x02:
+      id: tree_node
       doc: |
-        Names given to each layer, if present. Also other related info that
-        has not yet been reverse-engineered. One block per layer. See
+        Properties of a scene tree node: label (layer name), visibility,
+        and optional text anchoring. One block per layer. See
         `rm_layer_name`.
-    0x7010100:
-      id: text_def
+    0x03:
+      id: scene_glyph_item
+      doc: Highlight over text in an underlying PDF/EPUB.
+    0x04:
+      id: scene_group_item
       doc: |
-        The definition of the text on the page. At most one block per page.
-        See `rm_text_definition`.
-    0x4010100: 
-      id: layer_info
+        Places a group (layer) into its parent's child list. One block per
+        layer. See `rm_layer_info`.
+    0x05:
+      id: scene_line_item
+      doc: A pen stroke. See `rm_line`.
+    0x06:
+      id: scene_text_item
+      doc: Text item in the scene tree (not the page's typed text).
+    0x07:
+      id: root_text
       doc: |
-        Additional information about layers. Not yet reverse-engineered.
-        One block per layer. See `rm_layer_info`.
-    0x5020200: 
-      id: line_def
-      doc: |
-        Line definition, enumerating what is drawn on the screen. See
-        `rm_line`.
-    
+        The page's typed text. At most one block per page. See
+        `rm_text_definition`.
+    0x08:
+      id: scene_tombstone_item
+      doc: Placeholder for a deleted scene item.
+    0x09:
+      id: author_ids
+      doc: Maps the small integer author ids used in CRDT ids to UUIDs.
+    0x0a:
+      id: page_info
+      doc: Page counters (loads, merges, text chars/lines, ...).
+    0x0d:
+      id: scene_info
+      doc: Page-level scene state (current layer, visibility flags, ...).
+
   formatting_types:
     0x01000000: 
       id: bold_start
@@ -80,32 +99,43 @@ types:
     doc: |
       A block of data, storing some major structure of the format.
 
-      Blocks follow a size-type-value scheme, where a size (`len_body`)
-      describes the byte length of the block's held value (`body`) and
-      the value's type (`flag`, see enum `block_flags`).
+      Each block has an 8-byte header: the body length, one unknown byte,
+      two version bytes, and the block type. The body follows.
 
     seq:
       - id: len_body
         type: u4
         doc: Byte count for block's main body.
 
-      - id: flag
-        type: u4le
-        enum: block_flags
+      - id: unknown
+        type: u1
+        doc: Always 0 in observed files.
+
+      - id: min_version
+        type: u1
+        doc: Oldest reader version that can parse this block.
+
+      - id: current_version
+        type: u1
         doc: |
-          Flag indicating the type of value stored in block body. See
-          enum `block_flags`.
+          Version this block was written with. Selects the layout where it
+          varies between versions (e.g. point size in `scene_line_item`).
+
+      - id: block_type
+        type: u1
+        enum: block_type
+        doc: Type of value stored in the block body. See enum `block_type`.
 
       - id: body
         size: len_body
         type:
-          switch-on: flag
+          switch-on: block_type
           cases:
-            'block_flags::layer_def': rm_layer_definition
-            'block_flags::layer_names': rm_layer_name
-            'block_flags::text_def': rm_text_definition
-            'block_flags::layer_info': rm_layer_info
-            'block_flags::line_def': rm_line
+            'block_type::scene_tree': rm_layer_definition
+            'block_type::tree_node': rm_layer_name
+            'block_type::root_text': rm_text_definition
+            'block_type::scene_group_item': rm_layer_info
+            'block_type::scene_line_item': rm_line
             _: empty
         doc: Contains inner value of block.
 
