@@ -80,6 +80,14 @@ enums:
       doc: |
         Page-level scene state (current layer, visibility flags, ...). See
         `scene_info`.
+    0x0e:
+      id: image_table
+      doc: |
+        Images used on the page: maps an image key to the image file stored
+        next to the page. See `image_table`.
+    0x0f:
+      id: scene_image_item
+      doc: A placed image. See `scene_item`/`image_value`.
 
   tag_type:
     0x1:
@@ -103,6 +111,8 @@ enums:
     1: u1
     2: f4
     3: string
+    4: uuid
+    5: rect
 
   inline_format:
     1: bold_start
@@ -287,6 +297,64 @@ types:
         size: len_body
         type: string_body
 
+  tagged_s4:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0x4)
+      - id: value
+        type: s4
+
+  tagged_uuid:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0xc)
+      - id: len_value
+        type: u4
+      - id: value
+        size: len_value
+        doc: UUID in big-endian (RFC 4122) byte order.
+
+  tagged_rect:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type: optional_rect
+
+  optional_rect:
+    doc: |
+      Optional integer rectangle. Field layout from the Android app's
+      decompiled code; only `has_value == 0` has been observed.
+    seq:
+      - id: has_value
+        type: tagged_u1(1)
+      - id: x
+        type: tagged_s4(2)
+        if: has_value.value != 0
+      - id: y
+        type: tagged_s4(3)
+        if: has_value.value != 0
+      - id: w
+        type: tagged_s4(4)
+        if: has_value.value != 0
+      - id: h
+        type: tagged_s4(5)
+        if: has_value.value != 0
+      - id: unknown_trailing
+        size-eos: true
+
   string_body:
     seq:
       - id: len_value
@@ -339,6 +407,8 @@ types:
             'lww_kind::u1': tagged_u1(2)
             'lww_kind::f4': tagged_f4(2)
             'lww_kind::string': tagged_string(2)
+            'lww_kind::uuid': tagged_uuid(2)
+            'lww_kind::rect': tagged_rect(2)
       - id: unknown_trailing
         size-eos: true
 
@@ -387,6 +457,8 @@ types:
             'block_type::root_text': root_text
             'block_type::scene_group_item': scene_item(block_type, current_version)
             'block_type::scene_line_item': scene_item(block_type, current_version)
+            'block_type::scene_image_item': scene_item(block_type, current_version)
+            'block_type::image_table': image_table
             _: empty
         doc: Contains inner value of block.
 
@@ -492,6 +564,7 @@ types:
           cases:
             'block_type::scene_group_item': group_value
             'block_type::scene_line_item': line_value(version)
+            'block_type::scene_image_item': image_value
 
   group_value:
     seq:
@@ -861,3 +934,111 @@ types:
       - id: unknown_trailing
         size-eos: true
         doc: Newer firmware appends further fields (e.g. paper size).
+
+  image_table:
+    doc: |
+      Images referenced by `scene_image_item`s on this page. Image files
+      are stored beside the page as `<doc id>/<page id>/<name>`, where
+      `name` is `<uuid>.<ext>` (e.g. a JPEG straight from the camera
+      roll). Note the image `key` is a different UUID from the one in
+      `name`.
+    seq:
+      - id: list_tag
+        type: tag(1, 0xc)
+      - id: len_list
+        type: u4
+      - id: list
+        size: len_list
+        type: image_table_list
+      - id: unknown_trailing
+        size-eos: true
+
+  image_table_list:
+    seq:
+      - id: num_images
+        type: varuint
+      - id: images
+        type: image_entry
+        repeat: expr
+        repeat-expr: num_images.value
+
+  image_entry:
+    seq:
+      - id: tag
+        type: tag(0, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type: image_entry_body
+
+  image_entry_body:
+    seq:
+      - id: key
+        size: 16
+        doc: |
+          Image key (untagged UUID, big-endian byte order), referenced by
+          `image_value.image_ref`.
+      - id: name
+        type: lww(1, lww_kind::string)
+        doc: File name of the image resource, `<uuid>.<ext>`.
+      - id: crop
+        type: lww(2, lww_kind::rect)
+        doc: Optional source rectangle; probably a crop. Unset when observed.
+      - id: unknown_trailing
+        size-eos: true
+
+  image_value:
+    doc: |
+      A placed image, drawn as a textured mesh.
+    seq:
+      - id: item_type
+        type: u1
+        valid: 7
+      - id: image_ref
+        type: lww(1, lww_kind::uuid)
+        doc: Key of the image in the page's `image_table`.
+      - id: bounds_timestamp
+        type: tagged_id(2)
+      - id: vertices_tag
+        type: tag(3, 0xc)
+      - id: len_vertices
+        type: u4
+      - id: vertices
+        size: len_vertices
+        type: f4_list
+        doc: |
+          Flat list of `x, y, u, v` per vertex: page coordinates (same
+          origin as stroke points) and texture coordinates. Usually four
+          vertices with UVs (0,0) (1,0) (1,1) (0,1).
+      - id: indices_tag
+        type: tag(4, 0xc)
+      - id: len_indices
+        type: u4
+      - id: indices
+        size: len_indices
+        type: u4_list
+        doc: Triangle indices into `vertices`; usually 0,1,2, 2,3,0.
+      - id: move_id
+        type: tagged_id(5)
+        if: not _io.eof
+      - id: unknown_trailing
+        size-eos: true
+
+  f4_list:
+    seq:
+      - id: num_values
+        type: varuint
+      - id: values
+        type: f4
+        repeat: expr
+        repeat-expr: num_values.value
+
+  u4_list:
+    seq:
+      - id: num_values
+        type: varuint
+      - id: values
+        type: u4
+        repeat: expr
+        repeat-expr: num_values.value
