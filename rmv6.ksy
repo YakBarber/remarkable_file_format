@@ -37,13 +37,13 @@ enums:
       id: scene_tree
       doc: |
         Declares a node in the scene tree (the root group, each layer)
-        and its parent. One block per layer. See `rm_layer_definition`.
+        and its parent. One block per layer. See `scene_tree`.
     0x02:
       id: tree_node
       doc: |
         Properties of a scene tree node: label (layer name), visibility,
         and optional text anchoring. One block per layer. See
-        `rm_layer_name`.
+        `tree_node`.
     0x03:
       id: scene_glyph_item
       doc: Highlight over text in an underlying PDF/EPUB.
@@ -51,10 +51,10 @@ enums:
       id: scene_group_item
       doc: |
         Places a group (layer) into its parent's child list. One block per
-        layer. See `rm_layer_info`.
+        layer. See `scene_item`/`group_value`.
     0x05:
       id: scene_line_item
-      doc: A pen stroke. See `rm_line`.
+      doc: A pen stroke. See `scene_item`/`line_value`.
     0x06:
       id: scene_text_item
       doc: Text item in the scene tree (not the page's typed text).
@@ -62,7 +62,7 @@ enums:
       id: root_text
       doc: |
         The page's typed text. At most one block per page. See
-        `rm_text_definition`.
+        `root_text`.
     0x08:
       id: scene_tombstone_item
       doc: Placeholder for a deleted scene item.
@@ -76,25 +76,267 @@ enums:
       id: scene_info
       doc: Page-level scene state (current layer, visibility flags, ...).
 
-  formatting_types:
-    0x01000000: 
-      id: bold_start
-      doc: Denotes beginning of bold text. `$ 01 00 00 00`.
-    0x02000000: 
-      id: bold_end
-      doc: Denotes end of bold text. `$ 02 00 00 00`.
-    0x03000000: 
-      id: italic_start
-      doc: Denotes beginning of italic text. `$ 04 00 00 00`.
-    0x04000000: 
-      id: italic_end
-      doc: Denotes end of italic text. `$ 04 00 00 00`.
-    
-    
+  tag_type:
+    0x1:
+      id: byte1
+      doc: 1-byte value.
+    0x4:
+      id: byte4
+      doc: 4-byte value (u4 or f4).
+    0x8:
+      id: byte8
+      doc: 8-byte value (f8).
+    0xc:
+      id: length4
+      doc: Sub-block, prefixed with a u4 byte length.
+    0xf:
+      id: id
+      doc: A `crdt_id`.
+
+  lww_kind:
+    0: crdt_id
+    1: u1
+    2: f4
+    3: string
+
+  inline_format:
+    1: bold_start
+    2: bold_end
+    3: italic_start
+    4: italic_end
+
+  paragraph_style:
+    0: basic
+    1: plain
+    2: heading
+    3: bold
+    4: bullet
+    5: bullet2
+    6: checkbox
+    7: checkbox_checked
+
+  pen:
+    0: paintbrush_1
+    1: pencil_1
+    2: ballpoint_1
+    3: marker_1
+    4: fineliner_1
+    5: highlighter_1
+    6: eraser
+    7: mechanical_pencil_1
+    8: eraser_area
+    12: paintbrush_2
+    13: mechanical_pencil_2
+    14: pencil_2
+    15: ballpoint_2
+    16: marker_2
+    17: fineliner_2
+    18: highlighter_2
+    21: calligraphy
+    23: shader
+
+  pen_color:
+    0: black
+    1: gray
+    2: white
+    3: yellow
+    4: green
+    5: pink
+    6: blue
+    7: red
+    8: gray_overlap
+    9: highlight
+
 types:
-  
+
+  # ------------------------------------------------------------------
+  # Primitives
+  #
+  # Almost everything inside a block body is a sequence of tagged
+  # values. A tag is a varuint `(index << 4) | tag_type`, where `index`
+  # is the field number within the enclosing structure and `tag_type`
+  # says how the value is encoded (see enum `tag_type`). Most of the
+  # "magic" bytes seen in hex dumps (`1f`, `2f`, `3f`, `4f`, `54`, `6c`,
+  # `5c`, ...) are tags. Fields are optional; a reader skips what it
+  # doesn't know, and structures commonly gain new trailing fields in
+  # newer firmware.
+  # ------------------------------------------------------------------
+
   empty: {}
-  
+
+  varuint:
+    doc: |
+      Unsigned LEB128 integer: 7 bits per byte, least significant group
+      first, high bit set on every byte but the last. Up to 8 bytes
+      (56 bits) are decoded, enough for the 48-bit counters used.
+    seq:
+      - id: groups
+        type: u1
+        repeat: until
+        repeat-until: (_ & 0x80) == 0
+    instances:
+      value:
+        value: >-
+          (groups[0] & 0x7f) |
+          (groups.size > 1 ? (groups[1] & 0x7f).as<u8> << 7 : 0) |
+          (groups.size > 2 ? (groups[2] & 0x7f).as<u8> << 14 : 0) |
+          (groups.size > 3 ? (groups[3] & 0x7f).as<u8> << 21 : 0) |
+          (groups.size > 4 ? (groups[4] & 0x7f).as<u8> << 28 : 0) |
+          (groups.size > 5 ? (groups[5] & 0x7f).as<u8> << 35 : 0) |
+          (groups.size > 6 ? (groups[6] & 0x7f).as<u8> << 42 : 0) |
+          (groups.size > 7 ? (groups[7] & 0x7f).as<u8> << 49 : 0)
+
+  tag:
+    doc: |
+      A field tag, validated against the expected field index and tag type.
+      Encoded as varuint `(index << 4) | tag_type`; a single byte for
+      index < 8.
+    params:
+      - id: expected_index
+        type: u4
+      - id: expected_type
+        type: u1
+    seq:
+      - id: b0
+        type: u1
+        valid: '(((expected_index << 4) | expected_type) & 0x7f) | (expected_index >= 8 ? 0x80 : 0)'
+      - id: b1
+        type: u1
+        if: expected_index >= 8
+        valid: ((expected_index << 4) | expected_type) >> 7
+
+  crdt_id:
+    doc: |
+      Identifier of an object (layer, stroke, text character, ...) or a
+      Lamport-style timestamp. `author` indexes the `author_ids` block;
+      `counter` increments per new object.
+
+      These are the variable-length "id fields" of earlier versions of
+      this spec: the length varies because `counter` is a varuint.
+    seq:
+      - id: author
+        type: u1
+      - id: counter
+        type: varuint
+
+  tagged_id:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0xf)
+      - id: value
+        type: crdt_id
+
+  tagged_u1:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0x1)
+      - id: value
+        type: u1
+
+  tagged_u4:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0x4)
+      - id: value
+        type: u4
+
+  tagged_f4:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0x4)
+      - id: value
+        type: f4
+
+  tagged_f8:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0x8)
+      - id: value
+        type: f8
+
+  tagged_string:
+    params:
+      - id: index
+        type: u4
+    seq:
+      - id: tag
+        type: tag(index, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type: string_body
+
+  string_body:
+    seq:
+      - id: len_value
+        type: varuint
+      - id: is_ascii
+        type: u1
+      - id: value
+        type: str
+        size: len_value.value
+      - id: format
+        type: tagged_u4(2)
+        if: not _io.eof
+        doc: |
+          Inline formatting marker carried by an otherwise empty text item
+          (the "$" byte in earlier versions of this spec is this field's
+          tag). See enum `inline_format`.
+
+  lww:
+    doc: |
+      Last-writer-wins register: a value plus the timestamp of its last
+      write, used for mergeable properties.
+    params:
+      - id: index
+        type: u4
+      - id: kind
+        type: u1
+        enum: lww_kind
+    seq:
+      - id: tag
+        type: tag(index, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type: lww_body(kind)
+
+  lww_body:
+    params:
+      - id: kind
+        type: u1
+        enum: lww_kind
+    seq:
+      - id: timestamp
+        type: tagged_id(1)
+      - id: value
+        type:
+          switch-on: kind
+          cases:
+            'lww_kind::crdt_id': tagged_id(2)
+            'lww_kind::u1': tagged_u1(2)
+            'lww_kind::f4': tagged_f4(2)
+            'lww_kind::string': tagged_string(2)
+      - id: unknown_trailing
+        size-eos: true
+
   block:
     doc: |
       A block of data, storing some major structure of the format.
@@ -131,574 +373,381 @@ types:
         type:
           switch-on: block_type
           cases:
-            'block_type::scene_tree': rm_layer_definition
-            'block_type::tree_node': rm_layer_name
-            'block_type::root_text': rm_text_definition
-            'block_type::scene_group_item': rm_layer_info
-            'block_type::scene_line_item': rm_line
+            'block_type::scene_tree': scene_tree
+            'block_type::tree_node': tree_node
+            'block_type::root_text': root_text
+            'block_type::scene_group_item': scene_item(block_type, current_version)
+            'block_type::scene_line_item': scene_item(block_type, current_version)
             _: empty
         doc: Contains inner value of block.
 
-  rm_layer_definition:
-    doc: Defines each layer's id.
+  # ------------------------------------------------------------------
+  # Block bodies
+  # ------------------------------------------------------------------
 
+  scene_tree:
+    doc: Declares a scene tree node (root group or layer) and its parent.
     seq:
-      - id: magic_0 
-        contents: [0x1f]
-
-      - id: layer_id
-        #size: 2
-        terminator: 0x2f
-        consume: false
-        doc: |
-          Identifier for this layer that appears in other structures in reference
-          to this layer. There are some data types (defined below) that have 
-          fields with layer ids that appear to be incremented by 1 or 2. Eg, for 
-          a `layer_id` of `00 0b` a field may have `00 0c` or `00 0d`. What this 
-          means is still unclear.
-
-      - id: magic_1
-        contents: [0x2f]
-
-      - id: unknown_00
-        #size: 4
-        terminator: 0x4c
-        consume: false
-
-      - id: magic_2
-        contents: [0x4c]
-
-      - id: len_unknown
+      - id: tree_id
+        type: tagged_id(1)
+      - id: node_id
+        type: tagged_id(2)
+      - id: is_update
+        type: tagged_u1(3)
+      - id: parent_tag
+        type: tag(4, 0xc)
+      - id: len_parent
         type: u4
-        doc: |
-          This byte count refers to the remainder of the block, but it is
-          unclear what is present in that space.
+      - id: parent
+        size: len_parent
+        type: scene_tree_parent
+      - id: unknown_trailing
+        size-eos: true
 
-      - id: magic_3
-        contents: [0x1f]
+  scene_tree_parent:
+    seq:
+      - id: parent_id
+        type: tagged_id(1)
+      - id: unknown_trailing
+        size-eos: true
 
-      - size: 1
-        repeat: eos
-
-  rm_layer_name:
+  tree_node:
     doc: |
-      The primary purpose of this block is to match textual names to
-      their associated layer ids. There is additional data here as well,
-      but it's not clear what it means. Also, once in a while there is
-      even more data at the end of this block that might be related to
-      either the bold/italic formatting, or the forced moving of drawn
-      lines when text is added.
-
+      Properties of a scene tree node. For layers, `label` is the layer
+      name. Nodes anchored to typed text carry the optional anchor fields.
     seq:
-      - id: magic_0
-        contents: [0x1f]
+      - id: node_id
+        type: tagged_id(1)
+      - id: label
+        type: lww(2, lww_kind::string)
+      - id: visible
+        type: lww(3, lww_kind::u1)
+      - id: anchor_id
+        type: lww(7, lww_kind::crdt_id)
+        if: not _io.eof
+      - id: anchor_type
+        type: lww(8, lww_kind::u1)
+        if: not _io.eof
+      - id: anchor_threshold
+        type: lww(9, lww_kind::f4)
+        if: not _io.eof
+      - id: anchor_origin_x
+        type: lww(10, lww_kind::f4)
+        if: not _io.eof
+      - id: unknown_trailing
+        size-eos: true
 
-      - id: id
-        #size: 2
-        terminator: 0x2c
-        consume: false
-        doc: The layer's identifier.
-
-      - id: magic_1
-        contents: [0x2c]
-
-      - id: len_rest0
-        type: u4
-        doc: Byte length from here to magic_5 (3c)
-
-      - id: magic_2
-        contents: [0x1f]
-
-      - size: 2
-        doc: | 
-          This appears to be id plus 1. An id of `01 11` becomes `01 12`
-          here for some reason
-
-      - id: magic_3
-        contents: [0x2c]
-
-      - id: len_rest1
-        type: u4
-        doc: Byte length from here to magic_5 (3c)
-
-      - id: len_name
+  scene_item:
+    doc: |
+      Common wrapper for scene items (groups, strokes, ...). Items form a
+      CRDT sequence inside their parent: `left_id`/`right_id` are the
+      neighbours at insertion time. A deleted item keeps its ids, has a
+      non-zero `deleted_length` and no `value`.
+    params:
+      - id: kind
         type: u1
-        doc: Single byte length of the layer name as a string.
-
-      - id: magic_4
-        contents: [0x01]
-        doc: 01 byte marks the start of a string.
-
-      - id: name
-        type: str
-        size: len_name
-
-      - id: magic_5
-        contents: [0x3c]
-
-      - id: len_unknown
-        type: u4
-        doc: |
-          This byte count refers to the remainder of the block, but it is
-          unclear what is present in that space.
-
-      - id: magic_6
-        contents: [0x1f]
-
-      - size: 2
-
-      - id: magic_7
-        contents: [0x21, 0x01]
-
-      # there's more below here sometimes, related to when there's italic/bold?
-      # how to deal with that? Does it even matter? Who knows! (It probably does)
-    
-  rm_text_definition:
-    doc: |
-      The text definition block defines the text data on this page. Each page
-      will only have a single text definition block, which includes sub objects
-      for each of the text blocks and formatting flags necessary.
-
-      Sub objects within a text block include `rm_text_single` and
-      `rm_text_backmatter`.
-
-    seq:
-      - id: magic_0
-        contents: [0x1f]
-
-      - size: 2
-
-      - id: magic_1
-        contents: [0x2c]
-
-      - id: len_text0
-        type: u4
-
-      - id: magic_2
-        contents: [0x1c]
-
-      - id: len_text1
-        type: u4
-
-      - id: magic_3
-        contents: [0x1c]
-
-      - id: len_text2
-        type: u4
-
-      - id: num_text_entries
+        enum: block_type
+      - id: version
         type: u1
-
-      - id: texts
-        type: rm_text_single
-        repeat: expr
-        repeat-expr: num_text_entries
-        doc: |
-          Text entry sub objects repeat and are described both with a count
-          (`num_text_entries`) and a total size (`len_text2`, minus the 
-          count's byte).
-
-      - id: magic_4
-        contents: [0x2c]
-          
-      - id: len_backmatter
-        type: u4
-
-      - id: backmatter
-        type: rm_text_backmatter
-        size: len_backmatter
-        doc: |
-          Additional structured data associated with the text that is not
-          the text itself.
-
-      - id: magic_5
-        contents: [0x3c]
-
-      - id: len_rest
-        type: u4
-        doc: Byte count for the next section. not quite to the end of block?
-
-      - size: 1
-        repeat: expr
-        repeat-expr: len_rest
-
-      - size: 1
-        repeat: eos
-
-  rm_text_backmatter:
-    doc: |
-      Wrapper object to handle repeating backmatter structures. See
-      `rm_text_backmatter_piece` and `rm_text_definition`.
-
     seq:
-      - id: magic_0
-        contents: [0x1c]
+      - id: parent_id
+        type: tagged_id(1)
+      - id: item_id
+        type: tagged_id(2)
+      - id: left_id
+        type: tagged_id(3)
+      - id: right_id
+        type: tagged_id(4)
+      - id: deleted_length
+        type: tagged_u4(5)
+      - id: value
+        type: scene_item_value(kind, version)
+        if: not _io.eof
 
-      - id: len_rest
-        type: u4
-        doc: Byte count to end of backmatter section (end of `pieces`)
-
-      - size: 1
-        doc: Possibly magic
-  
-      - id: pieces
-        type: rm_text_backmatter_piece
-        repeat: eos
-
-  rm_text_backmatter_piece:
-    seq:
-      - size: 2
-
-      - id: magic_0
-        contents: [0x1f]
-
-      - id: unknown_00
-        #size: 2
-        terminator: 0x2c
-        consume: false
-
-      - id: magic_1
-        contents: [0x2c]
-
-      - id: len_unknown
-        type: u4
-
-      - size: 2
-
-  rm_text_single:
-    doc: |
-      This section encodes a single chunk of text, with some associated
-      information about positioning and identity. A single string of text
-      may be broken up into many of these chunks depending on how many
-      times the text was edited.
-
-    seq:
-      - id: magic_0
-        contents: [0x0c]
-
-      - id: len_text0
-        type: u4
-        doc: Byte count to end of this single text object
-
-      - id: magic_1
-        contents: [0x2f]
-
-      - id: chunk_id
-        terminator: 0x3f
-        consume: false
-        doc: |
-          It's not entirely clear how this works yet, but this is either
-          an identifier for this text chunk, or its address in the text space,
-          or both. Two additional similar fields appear next, and are often
-          used to (possibly) link, point, or refer to other chunks or locations
-          in the text. Of the three total "chunk_id" fields identified here,
-          this one is the most understood. It is never the same, and the first
-          chunk of the file always has this set to 00 14 or 00 15, with the 
-          other two fields both set to 0.
-
-      - id: magic_2
-        contents: [0x3f]
-
-      - id: other_chunk_id_1
-        terminator: 0x4f
-        consume: false
-        doc: See `chunk_id`
-
-      - id: magic_3
-        contents: [0x4f]
-
-      - id: other_chunk_id_2
-        terminator: 0x54
-        consume: false
-        doc: See `chunk_id`
-
-      - id: magic_4
-        contents: [0x54]
-        
-      - id: done_flag
-        type: u4
-        doc: | 
-          When set to 0, no further information is stored in this chunk.
-          However, this value is sometimes something besides 0 or 1. I have
-          seen 2, 3, 5, etc. Unclear if this is truly a binary flag or if
-          other information is stored in it.
-        
-      - id: magic_5
-        contents: [0x6c]
-        if: done_flag==0
-
-      - id: len_text1
-        type: u4
-        if: done_flag==0
-
-      - id: len_text_string
+  scene_item_value:
+    params:
+      - id: kind
         type: u1
-        if: done_flag==0
-
-      - id: magic_6
-        contents: [0x01]
-        if: done_flag==0
-
-      - id: text_string
-        type: str
-        size: len_text_string
-        if: done_flag==0
-        doc: This field is the actual text itself, as UTF-8.
-
-      - id: magic_dollar
-        contents: [0x24]
-        if: len_text1 - len_text_string - 2 == 5
-        doc: If present, it is a literal "$" and preceeds `dollar_value`.
-
-      - id: dollar_value
-        type: u4
-        enum: formatting_types
-        if: len_text1 - len_text_string - 2 == 5
-        doc: |
-          If present, this encodes the beginning or end of a formatted
-          region of the text (eg, bold or italic). See the `formatting_types`
-          enum for details.
-    
-  rm_layer_info:
-    doc: |
-      This is the final of the three types of blocks related to layers.
-      Most of the fields appear to be in the `layer_id` style (see 
-      `rm_layer_definition`) and may include the aforementioned incremented
-      ids. I am not sure of the function of this block at the moment.
-
+        enum: block_type
+      - id: version
+        type: u1
     seq:
-    - id: magic_0
-      contents: [0x1f]
+      - id: tag
+        type: tag(6, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type:
+          switch-on: kind
+          cases:
+            'block_type::scene_group_item': group_value
+            'block_type::scene_line_item': line_value(version)
 
-    - id: id_field_1
-      type: u2
+  group_value:
+    seq:
+      - id: item_type
+        type: u1
+        valid: 2
+      - id: node_id
+        type: tagged_id(2)
+        doc: The `scene_tree` node (layer) this item places.
+      - id: unknown_trailing
+        size-eos: true
 
-    - id: magic_2f
-      contents: [0x2f]
-
-    - id: id_field_2
-      #type: u2
-      terminator: 0x3f
-      consume: false
-
-
-    - id: magic_3f
-      contents: [0x3f]
-
-    - id: id_field_3
-      #type: u2
-      terminator: 0x4f
-      consume: false
-
-    - id: magic_4f
-      contents: [0x4f]
-
-    - id: id_field_4
-      type: u2
-
-    - id: magic_54
-      contents: [0x54]
-
-    - id: done_flag
-      type: u4
-
-    - id: magic_6c
-      contents: [0x6c]
-      if: done_flag == 0
-
-    - id: len_always_4 # was 5 when a bunch of the ids were extra long
-      size: 4
-      #contents: [0x04, 0x00, 0x00, 0x00]
-      if: done_flag == 0
-      doc: This is definitely a byte count, but is always 4.
-
-    - id: magic
-      contents: [0x02, 0x2f]
-      if: done_flag == 0
-
-    - id: layer_id
-      type: u2
-      if: done_flag == 0
-      doc: |
-        If present, this is appears to be the actual identifier of the layer
-        in question.
-      
-  rm_line:
+  line_value:
     doc: |
       A "line" is typically the result of a single stroke of the tablet's
       stylus, and represents some line segment on the page. Lines include
       information about the pen type and color, and then are defined as a
-      (long) array of individual points (`rm_point`). Here it is broken up
-      into the `header` section, which includes the pen information and
-      point count, and the `point_array` section, which is just an array
-      of point structs.
+      (long) array of individual points (`point`).
 
-      Of the types in this spec, the line and point structs are the ones 
+      Of the types in this spec, the line and point structs are the ones
       most similar to previous versions of the ReMarkable file format.
-
+    params:
+      - id: version
+        type: u1
     seq:
-      - id: header
-        type: rm_line_header
+      - id: item_type
+        type: u1
+        valid: 3
+      - id: tool
+        type: tagged_u4(1)
+        doc: See enum `pen`.
+      - id: color
+        type: tagged_u4(2)
+        doc: See enum `pen_color`.
+      - id: thickness_scale
+        type: tagged_f8(3)
+      - id: starting_length
+        type: tagged_f4(4)
+      - id: points_tag
+        type: tag(5, 0xc)
+      - id: len_points
+        type: u4
+      - id: points
+        size: len_points
+        type: point_array(version)
+      - id: timestamp
+        type: tagged_id(6)
+      - id: unknown_trailing
+        size-eos: true
+        doc: Newer firmware may append further fields (e.g. a move id).
+    instances:
+      tool_enum:
+        value: tool.value
+        enum: pen
+      color_enum:
+        value: color.value
+        enum: pen_color
 
-      - id: point_array
-        type: rm_point
-        repeat: expr
-        repeat-expr: header.len_point_array / 14 # each point is 14 bytes so...
-        if: header.done_flag == 0
-        doc: |
-          Each point struct is 14 bytes, so there are len_point_array / 14
-          point structs. See `rm_line_header` and `rm_point`.
-
-      - id: magic_end
-        contents: [0x6f, 0x00, 0x01]
-        if: header.done_flag == 0
-        doc: |
-          If this block is nontrivial, `done_flag` will be 0 and `point_array`
-          will be terminated with this 3-byte sequence.
-  
-  rm_line_header:
-    doc: |
-      The header information of the `rm_line`, including identity and pen info.
-
+  point_array:
+    params:
+      - id: version
+        type: u1
     seq:
-    - id: magic_0
-      contents: [0x1f]
+      - id: points
+        type: point(version)
+        repeat: eos
 
-    - id: layer_id
-      #type: u2
-      terminator: 0x2f
-      consume: false
-      doc: Id of the layer this line is associated with. See `rm_layer_definition`.
-
-    - id: magic_1
-      contents: [0x2f]
-
-    - id: line_id
-      #type: u2
-      terminator: 0x3f
-      consume: false
-      doc: A unique identifier for this line.
-
-    - id: magic_2
-      contents: [0x3f]
-
-    - id: last_line_id
-      #type: u2
-      terminator: 0x4f
-      consume: false
-      doc: The `line_id` of the previously-drawn line.
-
-    - id: magic_3
-      contents: [0x4f]
-
-    - id: id_field_0
-      type: u2
-      doc: This field is sometimes used and appears to be a line id.
-
-    - id: magic_4
-      contents: [0x54]
-
-    - id: done_flag
-      type: u4
-      doc: |
-        If this is 0, then the below information about pen, color, and
-        the point array is included. This is likely used to distinguish
-        between instantiated and assigned line structs.
-
-    - id: magic_5
-      contents: [0x6c]
-      if: done_flag == 0
-
-    - id: len_block_0
-      type: u4
-      if: done_flag == 0
-      doc: Byte count from here to the end of the line block.
-
-    - id: magic_6
-      contents: [0x03, 0x14]
-      if: done_flag == 0
-
-    - id: pen_type
-      type: u4
-      if: done_flag == 0
-      doc: TODO make this an enum
-
-    - id: magic_7
-      contents: [0x24]
-      if: done_flag == 0
-
-    - id: color
-      type: u4
-      if: done_flag == 0
-      doc: TODO make this an enum
-
-    - id: magic_8
-      contents: [0x38, 0x00, 0x00, 0x00, 0x00]
-      if: done_flag == 0
-
-    - id: brush_size
-      type: f4
-      if: done_flag == 0
-      doc: TODO make this an enum
-
-    - id: magic_9
-      contents: [0x44, 0x00, 0x00, 0x00, 0x00]
-      if: done_flag == 0
-
-    - id: magic_10
-      contents: [0x5c]
-      if: done_flag == 0
-
-    - id: len_point_array
-      type: u4
-      if: done_flag == 0
-        
-  rm_point:
+  point:
     doc: |
       A struct representing a single point/dot on the screen, many of which
       make up a single line.
 
+      Block version 1 stores every field after `y` as f4 (24 bytes per
+      point); version 2 packs them into 14 bytes.
+    params:
+      - id: version
+        type: u1
     seq:
-    - id: x
-      type: f4
-      doc: X coordinate of the point. Origin is in the center of the page.
+      - id: x
+        type: f4
+        doc: X coordinate of the point. Origin is in the center of the page.
+      - id: y
+        type: f4
+        doc: Y coordinate of the point. Origin is at the top of the page.
+      - id: speed_v1
+        type: f4
+        if: version == 1
+      - id: direction_v1
+        type: f4
+        if: version == 1
+      - id: width_v1
+        type: f4
+        if: version == 1
+      - id: pressure_v1
+        type: f4
+        if: version == 1
+      - id: speed
+        type: u2
+        if: version != 1
+        doc: |
+          Speed the stylus was moving when this point was drawn. Used for
+          rendering some pen types and influences the `width`.
+      - id: width
+        type: u2
+        if: version != 1
+        doc: Rendered width of the point on the screen.
+      - id: direction
+        type: u1
+        if: version != 1
+        doc: |
+          Direction the stylus was moving when this point was drawn. "Direction"
+          here is encoded as an angle mapped onto a single byte. For example,
+          a value of 0 correlates to 0 degrees and a value of 255 correlates to
+          360 degrees (or just under 360, rather). 0 degrees points to the right
+          on the page and increases clockwise. So 90 degrees (or a value of
+          255/4 = ~64) indicates moving downward.
+      - id: pressure
+        type: u1
+        if: version != 1
+        doc: |
+          A value representing how hard the stylus was pressing on the screen.
+          Used for rendering some pen types and influences the `width`.
 
-    - id: y
-      type: f4
-      doc: Y coordinate of the point. Origin is at the top of the page.
+  root_text:
+    doc: |
+      The page's typed text: a CRDT sequence of text items plus paragraph
+      styles keyed by character id, a position and a width.
+    seq:
+      - id: block_id
+        type: tagged_id(1)
+      - id: content_tag
+        type: tag(2, 0xc)
+      - id: len_content
+        type: u4
+      - id: content
+        size: len_content
+        type: root_text_content
+      - id: position_tag
+        type: tag(3, 0xc)
+      - id: len_position
+        type: u4
+      - id: position
+        size: len_position
+        type: root_text_position
+      - id: width
+        type: tagged_f4(4)
+      - id: unknown_trailing
+        size-eos: true
 
-    - id: speed
-      type: u1
-      doc: |
-        Speed the stylus was moving when this point was drawn. Used for
-        rendering some pen types and influences the `width`.
+  root_text_content:
+    seq:
+      - id: items_tag
+        type: tag(1, 0xc)
+      - id: len_items
+        type: u4
+      - id: items
+        size: len_items
+        type: text_items_wrapper
+      - id: styles_tag
+        type: tag(2, 0xc)
+      - id: len_styles
+        type: u4
+      - id: styles
+        size: len_styles
+        type: text_styles_wrapper
+      - id: unknown_trailing
+        size-eos: true
 
-    - id: pad0
-      type: u1
+  text_items_wrapper:
+    seq:
+      - id: list_tag
+        type: tag(1, 0xc)
+      - id: len_list
+        type: u4
+      - id: list
+        size: len_list
+        type: text_items
 
-    - id: width
-      type: u1
-      doc: Rendered width of the point on the screen.
+  text_items:
+    seq:
+      - id: num_items
+        type: varuint
+      - id: items
+        type: text_item
+        repeat: expr
+        repeat-expr: num_items.value
 
-    - id: pad1
-      type: u1
+  text_item:
+    doc: |
+      A run of text. A string is split into many items as it is edited;
+      order is given by `left_id`/`right_id`, not file order. Deleted runs
+      have non-zero `deleted_length` and no `value`.
+    seq:
+      - id: tag
+        type: tag(0, 0xc)
+      - id: len_body
+        type: u4
+      - id: body
+        size: len_body
+        type: text_item_body
 
-    - id: direction
-      type: u1
-      doc: |
-        Direction the stylus was moving when this point was drawn. "Direction"
-        here is encoded as an angle mapped onto a single byte. For example,
-        a value of 0 correlates to 0 degrees and a value of 255 correlates to
-        360 degrees (or just under 360, rather). 0 degrees points to the right
-        on the page and increases clockwise. So 90 degrees (or a value of 
-        255/4 = ~64) indicates moving downward.
+  text_item_body:
+    seq:
+      - id: item_id
+        type: tagged_id(2)
+      - id: left_id
+        type: tagged_id(3)
+      - id: right_id
+        type: tagged_id(4)
+      - id: deleted_length
+        type: tagged_u4(5)
+      - id: value
+        type: tagged_string(6)
+        if: not _io.eof
 
-    - id: pressure
-      type: u1
-      doc: |
-        A value representing how hard the stylus was pressing on the screen.
-        Used for rendering some pen types and influences the `width`.
+  text_styles_wrapper:
+    seq:
+      - id: list_tag
+        type: tag(1, 0xc)
+      - id: len_list
+        type: u4
+      - id: list
+        size: len_list
+        type: text_styles
 
+  text_styles:
+    seq:
+      - id: num_styles
+        type: varuint
+      - id: styles
+        type: text_style
+        repeat: expr
+        repeat-expr: num_styles.value
+
+  text_style:
+    doc: Paragraph style, applied from character `char_id`.
+    seq:
+      - id: char_id
+        type: crdt_id
+      - id: timestamp
+        type: tagged_id(1)
+      - id: value_tag
+        type: tag(2, 0xc)
+      - id: len_value
+        type: u4
+      - id: value
+        size: len_value
+        type: text_style_value
+
+  text_style_value:
+    seq:
+      - id: style
+        type: tagged_u1(1)
+        doc: See enum `paragraph_style`.
+    instances:
+      style_enum:
+        value: style.value
+        enum: paragraph_style
+
+  root_text_position:
+    seq:
+      - id: x
+        type: f8
+      - id: y
+        type: f8
 
   rm_frontmatter:
     doc: |
